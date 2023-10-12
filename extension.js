@@ -1,6 +1,5 @@
 // Roam Preview Overlay
 
-
 var graphName = window.roamAlphaAPI.graph.name;
 var rmIframe;
 var preview_overlay;
@@ -122,9 +121,10 @@ setInterval(abc, 2000);
     if ( window.innerWidth <= 800 ){
         return;
         // Not loading in mobile or tablet. 
-    }  
+    }
     var icon = 'applications';
     var span = document.createElement("span");
+    span.className = 'rm-preview-window';
     span.innerHTML = '<span aria-haspopup="true" class="bp3-popover-target"><span class="bp3-button bp3-minimal bp3-icon-' + icon + ' bp3-small" tabindex="0"></span></span></span>';
     document.querySelector(".rm-topbar").append(span);
     span.addEventListener("click", function(event){
@@ -149,6 +149,8 @@ setInterval(abc, 2000);
 
 function unload(){
     var div = document.querySelector(' #preview-window-overlay ');
+    div.remove();
+    div = document.querySelector(' .rm-topbar .rm-preview-window');
     div.remove();
 }
 
