@@ -119,6 +119,10 @@ setInterval(abc, 2000);
   }
   
   function load(){
+    if ( window.innerWidth <= 800 ){
+        return;
+        // Not loading in mobile or tablet. 
+    }  
     var icon = 'applications';
     var span = document.createElement("span");
     span.innerHTML = '<span aria-haspopup="true" class="bp3-popover-target"><span class="bp3-button bp3-minimal bp3-icon-' + icon + ' bp3-small" tabindex="0"></span></span></span>';
