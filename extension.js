@@ -86,7 +86,7 @@ function abc() {
     }
 
   }
-setInterval(abc, 2000);
+const int_id = setInterval(abc, 2000);
 
   function setPageUid(link) {
     console.log("me: preview window pageuid has been set");
@@ -152,6 +152,7 @@ function unload(){
     div.remove();
     div = document.querySelector(' .rm-topbar .rm-preview-window');
     div.remove();
+    clearInterval(int_id);
 }
 
 export default {
