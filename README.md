@@ -1,6 +1,7 @@
-# Roam_Preview_Window
+# Roam Preview Window
 
-When you press 'meta + hover' over any page or tag or block-ref it will preview the page or block in a new window. Then you can go through whole of your graph. 
+When you press 'meta + hover' over any page or tag or block-ref  or attribute it will preview that page or block in a new window. 
+In the new Roam window you can view your whole graph.
 
 # Watch this video for demo. 
 https://youtu.be/Id-GYYPqUQ0
