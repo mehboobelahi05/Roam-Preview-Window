@@ -1,144 +1,217 @@
-// Roam Preview Overlay
+// Roam Preview Overlay (Cmd + hover), single level, persistent iframe
 
-var graphName = window.roamAlphaAPI.graph.name;
-var rmIframe;
-var preview_overlay;
-var edit_block_uid;
-function loadPreviewWindow() {
-    console.log("me: preview window has been loaded");
+const HOVER_DELAY = 250; // ms to keep hovering before the window opens
+const LINK_SELECTOR =
+  "span.rm-page-ref, a.rm-alias--page, span.rm-block-ref, span.rm-attr-ref";
 
-    var elementClass = "preview-window";
-    var overlayDiv = document.createElement("div");
-    overlayDiv.id = "preview-window-overlay";
-    overlayDiv.innerHTML = '<div aria-live="polite" class="bp3-overlay bp3-overlay-open bp3-overlay-scroll-container"><div tabindex="0" class="bp3-overlay-enter-done"></div><div class="bp3-overlay-backdrop rm-modal-backdrop rm-modal-backdrop--' + elementClass + ' bp3-overlay-enter-done"></div><div class="bp3-dialog-container bp3-overlay-content bp3-overlay-enter-done"><div class="bp3-dialog rm-modal-dialog rm-modal-dialog--' + elementClass + '" role="dialog"></div></div><div tabindex="0" class="bp3-overlay-enter-done"></div></div>';
-
-    overlayDiv.style.display = "none";
-    document.body.append(overlayDiv);
-
-    var ele = document.querySelector(" #preview-window-overlay .bp3-dialog-container .rm-modal-dialog--preview-window");
-    ele.style.width = "80vw";
-    ele.style.height = "80vh";
-
-    var containerDiv = document.createElement("div");
-    containerDiv.id = "container-preview-window";
-    containerDiv.style.width = "100%";
-    containerDiv.style.height = "100%";
-    ele.appendChild(containerDiv);
-
-    rmIframe = document.createElement("iframe");
-    rmIframe.src = "https://roamresearch.com/#/app/" + graphName;
-    rmIframe.style.width = "100%";
-    rmIframe.style.height = "100%";
-    rmIframe.style.borderRadius = "5px";
-    rmIframe.style.border = "none";
-    containerDiv.appendChild(rmIframe);
-
-    var overlayPreviewWindow = document.querySelector(".bp3-overlay-backdrop.rm-modal-backdrop.rm-modal-backdrop--preview-window");
-    overlayPreviewWindow.addEventListener("click", (event) => {
-        closePreviewWindow();
-    });
+// ---------- helpers ----------
+function isTopWindow() {
+  try {
+    return window === window.parent;
+  } catch (e) {
+    return false;
+  }
 }
 
-function openPreviewWindow() {
-    if (preview_overlay) {
-        console.log("me: preview window has been opened");
-        preview_overlay.style.display = "block";
-    }
+function graphName() {
+  return window.roamAlphaAPI.graph.name;
+}
+
+function baseUrl() {
+  return "https://roamresearch.com/#/app/" + graphName();
+}
+
+function urlFor(uid) {
+  return baseUrl() + (uid ? "/page/" + uid : "");
+}
+
+function getUidFromLink(link) {
+  if (link.classList.contains("rm-block-ref")) {
+    return link.getAttribute("data-uid");
+  }
+  const withUid = link.closest("[data-link-uid]");
+  return withUid ? withUid.getAttribute("data-link-uid") : null;
+}
+
+// ---------- overlay (created ONCE, then only shown/hidden) ----------
+let overlayEl = null;
+let rmIframe = null;
+let currentUid = null;
+
+function buildOverlay() {
+  if (overlayEl) return;
+
+  const cls = "preview-window";
+  overlayEl = document.createElement("div");
+  overlayEl.id = "preview-window-overlay";
+  overlayEl.style.display = "none";
+  overlayEl.innerHTML =
+    '<div aria-live="polite" class="bp3-overlay bp3-overlay-open bp3-overlay-scroll-container">' +
+      '<div tabindex="0" class="bp3-overlay-enter-done"></div>' +
+      '<div class="bp3-overlay-backdrop rm-modal-backdrop rm-modal-backdrop--' + cls + ' bp3-overlay-enter-done"></div>' +
+      '<div class="bp3-dialog-container bp3-overlay-content bp3-overlay-enter-done">' +
+        '<div class="bp3-dialog rm-modal-dialog rm-modal-dialog--' + cls + '" role="dialog"></div>' +
+      '</div>' +
+      '<div tabindex="0" class="bp3-overlay-enter-done"></div>' +
+    '</div>';
+
+  const dialog = overlayEl.querySelector(".rm-modal-dialog--" + cls);
+  dialog.style.width = "80vw";
+  dialog.style.height = "80vh";
+
+  const container = document.createElement("div");
+  container.id = "container-preview-window";
+  container.style.width = "100%";
+  container.style.height = "100%";
+
+  rmIframe = document.createElement("iframe");
+  rmIframe.src = baseUrl(); // loaded once, at startup
+  rmIframe.style.width = "100%";
+  rmIframe.style.height = "100%";
+  rmIframe.style.borderRadius = "5px";
+  rmIframe.style.border = "none";
+
+  container.appendChild(rmIframe);
+  dialog.appendChild(container);
+  document.body.appendChild(overlayEl);
+
+  overlayEl
+    .querySelector(".rm-modal-backdrop--" + cls)
+    .addEventListener("click", closePreviewWindow);
+}
+
+function navigateIframe(uid) {
+  if (uid === currentUid) return; // already showing this page/block
+  currentUid = uid;
+  const url = urlFor(uid);
+  try {
+    // hash change only: the SPA navigates, the graph does NOT reload
+    rmIframe.contentWindow.location.hash = url.substring(url.indexOf("#"));
+  } catch (e) {
+    rmIframe.src = url; // fallback
+  }
+}
+
+function openPreviewWindow(uid) {
+  buildOverlay();
+  navigateIframe(uid);
+  overlayEl.style.display = "block";
 }
 
 function closePreviewWindow() {
-    preview_overlay = document.querySelector("#preview-window-overlay");
-    if (preview_overlay) {
-        console.log("me: preview window has been closed");
-        preview_overlay.style.display = "none";
-    }
+  if (overlayEl) overlayEl.style.display = "none"; // hide, don't destroy
 }
 
-function abc() {
-    var rmLinks = document.querySelectorAll("span.rm-page-ref, a.rm-alias--page, span.rm-block-ref, span.rm-attr-ref");
-
-    rmLinks.forEach(function (link) {
-        // Add the event listener for "mouseenter" (hover)
-        link.addEventListener("mouseenter", function (event) {
-            if (event.metaKey) {
-                setPageUid(event.target);
-            }
-        });
-    });
-
-    var edit_block = document.querySelector("textarea");
-    if (edit_block) {
-        edit_block_uid = document.querySelector("textarea").id.slice(-9);
-    } else {
-        edit_block_uid = "";
-    }
+function isOpen() {
+  return overlayEl && overlayEl.style.display !== "none";
 }
 
-function setPageUid(link) {
-    console.log("me: preview window pageuid has been set");
-    var pageUid = "";
-    switch (true) {
-        case link.classList.contains("rm-page-ref--tag") || link.classList.contains("rm-attr-ref"):
-            pageUid = link.getAttribute("data-link-uid");
-            break;
-        case link.classList.contains("rm-page-ref--link") || link.classList.contains("rm-page-ref--namespace"):
-            pageUid = link.parentElement.getAttribute("data-link-uid");
-            break;
-        case link.classList.contains("rm-alias--page"):
-            pageUid = link.getAttribute("data-link-uid");
-            break;
-        case link.classList.contains("rm-block-ref"):
-            pageUid = link.getAttribute("data-uid");
-            break;
-        default:
-            // Handle other cases if needed
-            break;
-    }
-    rmIframe.src = "https://roamresearch.com/#/app/" + graphName + "/page/" + pageUid;
-    console.log("me: preview window iframe source has been set");
-    //openPreviewWindow();
-    setTimeout(function () {
-        openPreviewWindow();
-    }, 500);
+// ---------- hover handling ----------
+let hoverTimer = null;
+let hoveredLink = null;
+
+function clearHoverTimer() {
+  if (hoverTimer) {
+    clearTimeout(hoverTimer);
+    hoverTimer = null;
+  }
 }
-var int_id;
+
+function scheduleOpen(link) {
+  clearHoverTimer();
+  const uid = getUidFromLink(link);
+  if (!uid) return;
+  hoverTimer = setTimeout(() => {
+    hoverTimer = null;
+    openPreviewWindow(uid);
+  }, HOVER_DELAY);
+}
+
+function onMouseOver(event) {
+  const link = event.target.closest && event.target.closest(LINK_SELECTOR);
+  if (!link || link === hoveredLink) return;
+  hoveredLink = link;
+  if (event.metaKey) scheduleOpen(link);
+}
+
+function onMouseOut(event) {
+  if (!hoveredLink) return;
+  if (event.relatedTarget && hoveredLink.contains(event.relatedTarget)) return;
+  hoveredLink = null;
+  clearHoverTimer();
+}
+
+function onKeyDown(event) {
+  if (event.key === "Escape") {
+    closePreviewWindow();
+    return;
+  }
+  if (event.key === "Meta" && hoveredLink && !isOpen()) {
+    scheduleOpen(hoveredLink);
+  }
+}
+
+// ---------- topbar button ----------
+let topbarBtn = null;
+let editBlockUid = "";
+
+function addTopbarButton() {
+  const topbar = document.querySelector(".rm-topbar");
+  if (!topbar) return;
+
+  topbarBtn = document.createElement("span");
+  topbarBtn.className = "rm-preview-window";
+  topbarBtn.innerHTML =
+    '<span aria-haspopup="true" class="bp3-popover-target">' +
+    '<span class="bp3-button bp3-minimal bp3-icon-applications bp3-small" tabindex="0"></span>' +
+    "</span>";
+  topbar.appendChild(topbarBtn);
+
+  topbarBtn.addEventListener("mousedown", () => {
+    const ta = document.querySelector("textarea");
+    editBlockUid = ta ? ta.id.slice(-9) : "";
+  });
+  topbarBtn.addEventListener("click", () => openPreviewWindow(editBlockUid));
+}
+
+// ---------- lifecycle ----------
 function load() {
-    int_id = setInterval(abc, 2000);
-    if (window.innerWidth <= 800) {
-        return;
-        // Not loading in mobile or tablet.
-    }
-    var icon = "applications";
-    var span = document.createElement("span");
-    span.className = "rm-preview-window";
-    span.innerHTML = '<span aria-haspopup="true" class="bp3-popover-target"><span class="bp3-button bp3-minimal bp3-icon-' + icon + ' bp3-small" tabindex="0"></span></span></span>';
-    document.querySelector(".rm-topbar").append(span);
-    span.addEventListener("click", function (event) {
-        var edit_block = document.querySelector("textarea");
-        if (edit_block_uid != "") {
-            rmIframe.src = "https://roamresearch.com/#/app/" + graphName + "/page/" + edit_block_uid;
-        } else {
-            rmIframe.src = "https://roamresearch.com/#/app/" + graphName;
-        }
+  // single level only: never run inside the preview iframe
+  if (!isTopWindow()) return;
+  // skip mobile / tablet
+  if (window.innerWidth <= 800) return;
 
-        setTimeout(function () {
-            openPreviewWindow();
-        }, 500);
-    });
+  if (window.__roamPreviewPlugin) window.__roamPreviewPlugin.unload();
 
-    loadPreviewWindow();
-    preview_overlay = document.querySelector("#preview-window-overlay");
+  document.addEventListener("mouseover", onMouseOver, true);
+  document.addEventListener("mouseout", onMouseOut, true);
+  document.addEventListener("keydown", onKeyDown, true);
+  addTopbarButton();
+  buildOverlay(); // preload the graph once so the first hover is instant
+
+  window.__roamPreviewPlugin = { unload };
 }
 
 function unload() {
-    var div = document.querySelector(" #preview-window-overlay ");
-    div.remove();
-    div = document.querySelector(" .rm-topbar .rm-preview-window");
-    div.remove();
-    clearInterval(int_id);
+  document.removeEventListener("mouseover", onMouseOver, true);
+  document.removeEventListener("mouseout", onMouseOut, true);
+  document.removeEventListener("keydown", onKeyDown, true);
+  clearHoverTimer();
+  if (overlayEl) {
+    overlayEl.remove();
+    overlayEl = null;
+    rmIframe = null;
+  }
+  currentUid = null;
+  if (topbarBtn) {
+    topbarBtn.remove();
+    topbarBtn = null;
+  }
+  hoveredLink = null;
+  window.__roamPreviewPlugin = null;
 }
 
 export default {
-    onload: load,
-    onunload: unload,
+  onload: load,
+  onunload: unload,
 };
